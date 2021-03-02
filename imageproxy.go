@@ -90,6 +90,9 @@ type Proxy struct {
 	// If true, log additional debug messages
 	Verbose bool
 
+	// If true, reverse options and remote_url for base64 encoded url and options
+	CdnMode bool
+
 	// ContentTypes specifies a list of content types to allow. An empty
 	// list means all content types are allowed.
 	ContentTypes []string
@@ -162,7 +165,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // serveImage handles incoming requests for proxied images.
 func (p *Proxy) serveImage(w http.ResponseWriter, r *http.Request) {
-	req, err := NewRequest(r, p.DefaultBaseURL)
+	req, err := GetRequest(r, p.DefaultBaseURL, p.CdnMode)
 	if err != nil {
 		msg := fmt.Sprintf("invalid request URL: %v", err)
 		p.log(msg)

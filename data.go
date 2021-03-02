@@ -15,6 +15,7 @@
 package imageproxy
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -315,6 +316,66 @@ func (r Request) String() string {
 	u := *r.URL
 	u.Fragment = r.Options.String()
 	return u.String()
+}
+
+// GetRequest gets an imageProxy request based on the http.Request while specifying the order
+// for options and remote_url, in order to receive /{options}/{remote_url}
+// or /{base64_encoded_remote_url}/{options}
+func GetRequest(r *http.Request, baseURL *url.URL, cdnMode bool) (*Request, error) {
+
+	if cdnMode {
+		return NewCDNProofRequest(r, baseURL)
+	}
+	return NewRequest(r, baseURL)
+}
+
+// NewCDNProofRequest parses an http.Request into an imageproxy Request.  Options and
+// the remote image URL are specified in the request path, formatted as:
+// /{base64_encoded_remote_url}/{options}.  Options may be omitted, so a request path may
+// simply contain /{base64_encoded_remote_url}.  The remote URL must be an absolute "http" or
+// "https" URL, should not be URL encoded, and may contain a query string.
+//
+// Assuming an imageproxy server running on localhost, the following are all
+// valid imageproxy requests:
+//
+// 	http://localhost/aHR0cDovL2V4YW1wbGUuY29tL2ltYWdlLmpwZw==/?100x200 (http://example.com/image.jpg)
+// 	http://localhost/aHR0cDovL2V4YW1wbGUuY29tL2ltYWdlLmpwZw==?cx175,cw400,ch300,100x (http://example.com/image.jpg)
+// 	http://localhost/aHR0cDovL2V4YW1wbGUuY29tL2ltYWdlLmpwZw== (http://example.com/image.jpg)
+func NewCDNProofRequest(r *http.Request, baseURL *url.URL) (*Request, error) {
+	var err error
+	req := &Request{Original: r}
+
+	path := r.URL.EscapedPath()[1:] // strip leading slash
+	query := r.URL.RawQuery
+
+	parts := strings.SplitN(path, "/", 2)
+	lDec, err := base64.URLEncoding.DecodeString(parts[0]) // We only need the first part to decode
+	if err != nil {
+		return nil, URLError{fmt.Sprintf("unable to parse remote URL: %v", err), r.URL}
+	}
+
+	req.URL, err = parseURL(string(lDec)) // Check the string is an URL
+	if err != nil {
+		return nil, URLError{fmt.Sprintf("unable to parse remote URL: %v", err), r.URL}
+	}
+
+	if len(query) > 0 {
+		req.Options = ParseOptions(query)
+	}
+
+	if baseURL != nil {
+		req.URL = baseURL.ResolveReference(req.URL)
+	}
+
+	if !req.URL.IsAbs() {
+		return nil, URLError{"must provide absolute remote URL", r.URL}
+	}
+
+	if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
+		return nil, URLError{"remote URL must have http or https scheme", r.URL}
+	}
+
+	return req, nil
 }
 
 // NewRequest parses an http.Request into an imageproxy Request.  Options and
