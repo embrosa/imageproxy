@@ -33,7 +33,7 @@ can see the go versions that are tested against in
 
 ## URL Structure ##
 
-imageproxy URLs are of the form `http://localhost/{options}/{remote_url}`.
+imageproxy URLs are of the form `http://localhost/{options}/{remote_url}`, or `http://localhost/{base64_encoded_remote_url}/?{options}`, depending on the mode ImageProxy runs in.
 
 ### Options ###
 
@@ -56,6 +56,9 @@ strings.
 
 [optimize caching]: http://www.stevesouders.com/blog/2008/08/23/revving-filenames-dont-use-querystring/
 
+### CDN mode and Invalidating CDN Cached content ###
+
+In CDN-mode (see below), usage of Imageproxy would then for example be calling http://localhost/aHR0cDovL2V4YW1wbGUuY29tL2ltYWdlLmpwZw==/?100x200 where the `aHR0cDovL2V4YW1wbGUuY29tL2ltYWdlLmpwZw==` part is base64 encoded for `http://example.com/image.jpg`.
 ### Examples ###
 
 The following live examples demonstrate setting different options on [this
@@ -305,6 +308,18 @@ Run `imageproxy -help` for a complete list of flags the command accepts.  If
 you want to use a different caching implementation, it's probably easiest to
 just make a copy of `cmd/imageproxy/main.go` and customize it to fit your
 needs... it's a very simple command.
+
+### CDN mode and Invalidating CDN Cached content ###
+
+When using ImageProxy behind a CDN server, you can run ImageProxy in "_CDN Mode_". This allows you to be able to invalidate cached content on this CDN server easily.
+
+Usage of Imageproxy would then for example be calling http://localhost/aHR0cDovL2V4YW1wbGUuY29tL2ltYWdlLmpwZw==/?100x200 where the `aHR0cDovL2V4YW1wbGUuY29tL2ltYWdlLmpwZw==` part is base64 encoded for `http://example.com/image.jpg`.
+
+This structure allows you to easily [Invalidate Cached Content](https://cloud.google.com/cdn/docs/invalidating-cached-content), by just removing `/aHR0cDovL2V4YW1wbGUuY29tL2ltYWdlLmpwZw==/*` from your CDN cache in the above case.
+
+    imageproxy -cdnMode true
+
+_Please note: This does not work well with the built in caching of ImageProxy._
 
 ### Environment Variables ###
 
